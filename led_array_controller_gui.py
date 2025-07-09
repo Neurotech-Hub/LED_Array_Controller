@@ -18,8 +18,8 @@ Hardware Requirements:
 - USB connection to master device
 - Servo and DAC outputs per device
 
-Author: LED Array Controller Team
-Version: 1.0
+Author: Neurotech Hub
+Version: 0.1
 """
 
 import tkinter as tk
