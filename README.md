@@ -1,6 +1,12 @@
 # SEEEDuino LED Array Controller GUI
 
-A Python GUI application for controlling SEEEDuino XIAO (SAMD21) boards in a daisy-chained round-robin communication system.
+A Python GUI application for controlling SEEEDuino XIAO (SAMD21) boards in a daisy-chained round-robin communication system. This application provides precise control over servo motors and LED arrays through an intuitive graphical interface.
+
+![LED Array Controller GUI Screenshot](docs/LED%20Array%20Controller%20GUI.png)
+
+## Overview
+
+The LED Array Controller GUI enables seamless control of multiple SEEEDuino XIAO boards arranged in a daisy chain. Each board can control a servo motor (0-180 degrees) and an LED via DAC output (0-100% brightness). The system uses a round-robin communication protocol where commands are passed from one device to the next, allowing for both synchronized and individual device control.
 
 ## Features
 
@@ -106,39 +112,38 @@ The system uses a round-robin communication protocol:
 
 ## Troubleshooting
 
-### Connection Issues
-- Ensure the correct COM port is selected
-- Check that the SEEEDuino is properly connected via USB
-- Try refreshing the port list
-- Verify the baud rate matches the Arduino code (115200)
+### Common Issues
 
-### Device Detection
-- Wait for initialization to complete (may take 5-10 seconds)
-- Use "Re-initialize" if devices are not detected
-- Check Serial1 connections between devices in the daisy chain
+1. **Device Detection Problems**
+   - Verify all devices are properly powered
+   - Check physical connections in the daisy chain
+   - Use "Manual Count" override if auto-detection fails
+   - Click "Re-initialize" to restart device discovery
 
-### Command Issues
-- Verify device IDs are within the detected range
-- Check the communication log for error messages
-- Ensure servo angles are 0-180 degrees
-- Ensure DAC percentages are 0-100%
+2. **Command Timeout Warnings**
+   - Normal protection feature if command takes >2.5 seconds
+   - System automatically recovers to READY state
+   - Simply retry the command if needed
+   - Check physical connections if persistent
 
-## Future Enhancements
+3. **Communication Errors**
+   - Verify correct COM port selection
+   - Ensure baud rate matches Arduino setting (115200)
+   - Check USB connection to master device
+   - Monitor communication log for error messages
 
-The GPIO Control section is prepared for future expansion to include:
-- Digital pin control (D4, D5, D8, D9, D10)
-- Analog input reading
-- Custom command sequences
-- Device-specific configurations
+### Best Practices
 
-## Arduino Compatibility
-
-This GUI is designed to work with the SEEEDuino LED Array Controller Arduino code:
-- Supports round-robin communication protocol
-- Compatible with servo and DAC commands
-- Handles device initialization and status queries
-- Processes broadcast and targeted commands
+- Always wait for complete initialization before sending commands
+- Use "All Devices" mode (000) for synchronized movements
+- Monitor the communication log for debugging
+- Export logs for technical support
+- Keep firmware updated on all devices
 
 ## License
 
-This project is part of the LED Array Controller system. Please refer to the main project documentation for licensing information. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
