@@ -7,7 +7,7 @@ in a daisy-chained round-robin communication system.
 
 Features:
 - Serial port scanning and connection management
-- Servo angle control (0-180 degrees)
+- Servo angle control (60-120 degrees)
 - DAC control via percentage (0-100%)
 - Device targeting (all devices or specific device)
 - Real-time status monitoring
@@ -54,9 +54,19 @@ class LEDArrayControllerGUI:
         # Command history
         self.command_history = []
         
+        # Demo state variables
+        self.demo_running = False
+        self.demo_thread = None
+        
+        # Command completion tracking
+        self.waiting_for_eot = False
+        
         # Create GUI elements
         self.create_widgets()
         self.update_port_list()
+        
+        # Auto-connect to first available port
+        self.root.after(1000, self.auto_connect_first_port)
         
         # Start GUI update loop
         self.update_gui()
@@ -215,12 +225,12 @@ class LEDArrayControllerGUI:
         # Angle control
         ttk.Label(servo_frame, text="Angle (degrees):").grid(row=2, column=0, sticky=tk.W, pady=(0, 5))
         self.servo_angle_var = tk.IntVar(value=90)
-        servo_angle_spin = ttk.Spinbox(servo_frame, from_=0, to=180, width=10, 
+        servo_angle_spin = ttk.Spinbox(servo_frame, from_=60, to=120, width=10, 
                                       textvariable=self.servo_angle_var)
         servo_angle_spin.grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=(0, 5))
         
         # Angle slider  
-        self.servo_scale = ttk.Scale(servo_frame, from_=0, to=180, orient=tk.HORIZONTAL,
+        self.servo_scale = ttk.Scale(servo_frame, from_=60, to=120, orient=tk.HORIZONTAL,
                                     variable=self.servo_angle_var, length=250,
                                     command=self.update_servo_display)
         self.servo_scale.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 10))
@@ -229,21 +239,28 @@ class LEDArrayControllerGUI:
         preset_frame = ttk.Frame(servo_frame)
         preset_frame.grid(row=4, column=0, columnspan=2, pady=(0, 10))
         
-        ttk.Button(preset_frame, text="0°", width=6,
-                  command=lambda: self.set_servo_angle(0)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="45°", width=6,
-                  command=lambda: self.set_servo_angle(45)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="60°", width=6,
+                  command=lambda: self.set_servo_angle(60)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="75°", width=6,
+                  command=lambda: self.set_servo_angle(75)).pack(side=tk.LEFT, padx=(0, 2))
         ttk.Button(preset_frame, text="90°", width=6,
                   command=lambda: self.set_servo_angle(90)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="135°", width=6,
-                  command=lambda: self.set_servo_angle(135)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="180°", width=6,
-                  command=lambda: self.set_servo_angle(180)).pack(side=tk.LEFT)
+        ttk.Button(preset_frame, text="105°", width=6,
+                  command=lambda: self.set_servo_angle(105)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="120°", width=6,
+                  command=lambda: self.set_servo_angle(120)).pack(side=tk.LEFT)
         
-        # Send button with dynamic text
-        self.servo_send_btn = ttk.Button(servo_frame, text="Send to All Servos", 
+        # Send and Demo buttons
+        button_frame = ttk.Frame(servo_frame)
+        button_frame.grid(row=5, column=0, columnspan=2, pady=(10, 0))
+        
+        self.servo_send_btn = ttk.Button(button_frame, text="Send to All Servos", 
                                         command=self.send_servo_command)
-        self.servo_send_btn.grid(row=5, column=0, columnspan=2, pady=(10, 0))
+        self.servo_send_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.demo_btn = ttk.Button(button_frame, text="Demo Mode", 
+                                  command=self.start_servo_demo)
+        self.demo_btn.pack(side=tk.LEFT)
         
     def create_dac_section(self, parent, row, col):
         """Create DAC control section with dual modes"""
@@ -418,6 +435,23 @@ class LEDArrayControllerGUI:
         
         self.log_message("Disconnected from serial port")
         
+    def auto_connect_first_port(self):
+        """Automatically connect to the first available port if not already connected"""
+        if self.connected:
+            return  # Already connected, skip auto-connect
+            
+        if not self.available_ports:
+            self.log_message("Auto-connect: No serial ports detected")
+            return
+            
+        try:
+            first_port = self.available_ports[0]
+            self.port_var.set(first_port)
+            self.log_message(f"Auto-connecting to first available port: {first_port}")
+            self.connect_serial()
+        except Exception as e:
+            self.log_message(f"Auto-connect failed: {str(e)}")
+        
     def read_serial_data(self):
         """Read data from serial port in separate thread"""
         while not self.stop_threads and self.connected:
@@ -459,6 +493,18 @@ class LEDArrayControllerGUI:
                             state_match = re.search(r'Current State:\s*(\w+)', line)
                             if state_match:
                                 self.message_queue.put(('system_state', state_match.group(1)))
+                        
+                        # Parse command completion messages
+                        if "Command completed round trip:" in line:
+                            self.message_queue.put(('command_complete', True))
+                        
+                        # Filter out verbose Arduino messages to reduce log clutter
+                        if any(phrase in line for phrase in [
+                            "Master Servo set to:",
+                            "Master DAC set to:"
+                        ]):
+                            # Skip logging these verbose messages
+                            continue
                                 
                 time.sleep(0.1)
             except Exception as e:
@@ -480,6 +526,12 @@ class LEDArrayControllerGUI:
                     self.log_message(f"Device count updated: {data} devices detected")
                 elif message_type == 'system_state':
                     self.system_state_var.set(data)
+                elif message_type == 'command_complete':
+                    if self.waiting_for_eot:
+                        self.waiting_for_eot = False
+                        self.log_message("✓ Command completed successfully")
+                    else:
+                        self.log_message("⚠️ Command completed but not waiting for any command")
                 elif message_type == 'master_started':
                     self.log_message("Master device started - beginning device detection")
                 elif message_type == 'device_initialized':
@@ -565,30 +617,38 @@ class LEDArrayControllerGUI:
             
     def send_servo_command(self):
         """Send servo control command based on selected mode with timeout recovery"""
+        if self.waiting_for_eot:
+            messagebox.showwarning("Wait", "Please wait for previous command to complete")
+            return
+            
         angle = self.servo_angle_var.get()
         
         try:
             angle_int = int(angle)
-            if 0 <= angle_int <= 180:
+            if 60 <= angle_int <= 120:
                 if self.servo_mode_var.get() == "all":
                     # Send to all devices (disk mode)
                     device_id = "000"
                     command = f"{device_id},servo,{angle_int}"
-                    if self.send_command_with_recovery(command):
+                    if self.send_command_with_eot_tracking(command):
                         self.log_message(f"Servo command sent to ALL devices: Angle {angle_int}° (Disk Mode)")
                 else:
                     # Send to individual device
                     device_id = self.servo_device_var.get()
                     command = f"{device_id},servo,{angle_int}"
-                    if self.send_command_with_recovery(command):
+                    if self.send_command_with_eot_tracking(command):
                         self.log_message(f"Servo command sent to Device {device_id}: Angle {angle_int}°")
             else:
-                messagebox.showerror("Error", "Servo angle must be between 0 and 180 degrees")
+                messagebox.showerror("Error", "Servo angle must be between 60 and 120 degrees")
         except ValueError:
             messagebox.showerror("Error", "Invalid servo angle value")
             
     def send_dac_command(self):
         """Send DAC control command based on selected mode with timeout recovery"""
+        if self.waiting_for_eot:
+            messagebox.showwarning("Wait", "Please wait for previous command to complete")
+            return
+            
         percent = self.dac_percent_var.get()
         
         try:
@@ -601,13 +661,13 @@ class LEDArrayControllerGUI:
                     # Send to all devices
                     device_id = "000"
                     command = f"{device_id},dac,{dac_value}"
-                    if self.send_command_with_recovery(command):
+                    if self.send_command_with_eot_tracking(command):
                         self.log_message(f"DAC command sent to ALL LEDs: {percent_int}% (Raw: {dac_value})")
                 else:
                     # Send to individual device
                     device_id = self.dac_device_var.get()
                     command = f"{device_id},dac,{dac_value}"
-                    if self.send_command_with_recovery(command):
+                    if self.send_command_with_eot_tracking(command):
                         self.log_message(f"DAC command sent to Device {device_id}: {percent_int}% (Raw: {dac_value})")
             else:
                 messagebox.showerror("Error", "DAC percentage must be between 0 and 100")
@@ -658,9 +718,109 @@ class LEDArrayControllerGUI:
             self.log_message(f"Send error: {str(e)}")
             return False
             
+    def send_command_with_eot_tracking(self, command):
+        """Send command and track for completion"""
+        if not self.connected or not self.serial_connection:
+            messagebox.showerror("Error", "Not connected to device")
+            return False
+            
+        try:
+            self.serial_connection.write(f"{command}\n".encode())
+            self.log_message(f"TX: {command}")
+            self.command_history.append(command)
+            
+            # Set waiting flag for completion detection
+            self.waiting_for_eot = True
+            self.log_message("⏳ Waiting for command completion...")
+            
+            return True
+        except Exception as e:
+            self.log_message(f"Send error: {str(e)}")
+            self.waiting_for_eot = False
+            return False
+            
     def set_servo_angle(self, angle):
         """Set servo angle from preset button"""
         self.servo_angle_var.set(angle)
+        
+    def start_servo_demo(self):
+        """Start servo demo pattern in a separate thread"""
+        if self.demo_running:
+            self.log_message("Demo already running - please wait for completion")
+            return
+            
+        if not self.connected:
+            messagebox.showerror("Error", "Not connected to device")
+            return
+            
+        # Start demo in separate thread to avoid blocking GUI
+        self.demo_running = True
+        self.demo_btn.configure(text="Demo Running...", state="disabled")
+        self.demo_thread = threading.Thread(target=self.run_servo_demo, daemon=True)
+        self.demo_thread.start()
+        
+    def run_servo_demo(self):
+        """Run the servo demo pattern"""
+        try:
+            self.log_message("Starting servo demo pattern...")
+            
+            for cycle in range(3):
+                if not self.demo_running:  # Check if demo was cancelled
+                    break
+                    
+                self.log_message(f"Demo cycle {cycle + 1}/3 - Forward sweep (60° to 120°)")
+                
+                # Forward sweep: 60 to 120
+                for angle in range(60, 120, 10):
+                    if not self.demo_running:
+                        break
+                        
+                    # Send command to all devices
+                    command = f"000,servo,{angle}"
+                    if self.send_command(command):
+                        self.log_message(f"Demo: All servos → {angle}°")
+                        self.root.after(0, lambda a=angle: self.servo_angle_var.set(a))
+                    
+                    time.sleep(0.5)
+                
+                if not self.demo_running:
+                    break
+                    
+                self.log_message(f"Demo cycle {cycle + 1}/3 - Backward sweep (120° to 60°)")
+                
+                self.send_command("000,dac,25")
+
+                # Backward sweep: 120 to 60
+                for angle in range(120, 60, -10):
+                    if not self.demo_running:
+                        break
+                        
+                    # Send command to all devices
+                    command = f"000,servo,{angle}"
+                    if self.send_command(command):
+                        self.log_message(f"Demo: All servos → {angle}°")
+                        # Update GUI slider to show current angle
+                        self.root.after(0, lambda a=angle: self.servo_angle_var.set(a))
+                    
+                    time.sleep(0.5)
+
+                self.send_command("000,dac,0")
+                    
+                # Small pause between cycles
+                if cycle < 1 and self.demo_running:
+                    time.sleep(1.0)
+                    
+        except Exception as e:
+            self.log_message(f"Demo error: {str(e)}")
+        finally:
+            # Reset demo state
+            self.demo_running = False
+            self.root.after(0, self.reset_demo_button)
+            self.log_message("Servo demo pattern completed")
+            
+    def reset_demo_button(self):
+        """Reset demo button state (must be called from main thread)"""
+        self.demo_btn.configure(text="Demo Mode", state="normal")
         
     def set_dac_percent(self, percent):
         """Set DAC percentage from preset button"""
@@ -789,7 +949,7 @@ class LEDArrayControllerGUI:
            • Target specific devices (001, 002, 003...)
            • Precise control of single servos
            • Select device from dropdown
-           • Example: Only device 002 servo moves to 45°
+           • Example: Only device 002 servo moves to 75°
         
         DAC (LED) CONTROL:
         • 000 = All LEDs (synchronized brightness)
@@ -801,8 +961,8 @@ class LEDArrayControllerGUI:
         
         Servo Commands:
         • All servos to 90°: Uses mode "All Servos", angle=90
-        • Device 2 servo to 45°: Uses mode "Individual", device=002, angle=45
-        • Device 1 servo to 180°: Uses mode "Individual", device=001, angle=180
+        • Device 2 servo to 75°: Uses mode "Individual", device=002, angle=75
+        • Device 1 servo to 105°: Uses mode "Individual", device=001, angle=105
         
         DAC/LED Commands:
         • All LEDs to 50%: Device=000, percentage=50% (→ raw value 512)
@@ -832,23 +992,22 @@ class LEDArrayControllerGUI:
         • Check physical connections in daisy-chain
         • Ensure all devices are powered
         
-        Timeout Warnings:
-        • "WARNING: Command timeout" is normal Arduino protection
-        • Occurs if command takes longer than 2.5 seconds
-        • System automatically returns to READY state
-        • Simply resend the command if needed
-        • NOT a GUI problem - this is Arduino safety feature
+        Command Completion:
+        • Commands complete when "Command completed round trip" appears
+        • GUI shows "✓ Command completed successfully" when done
+        • Wait for completion before sending next command
+        • Simple round-trip confirmation system
         
         Command Not Working:
         • Check device is detected (see "Total Devices")
         • Verify device ID is in valid range (001 to detected count)
-        • Ensure servo angles are 0-180°
+        • Ensure servo angles are 60-120°
         • Ensure DAC percentages are 0-100%
         • Check communication log for error messages
         
         PRESET BUTTONS:
         
-        Servo Presets: 0°, 45°, 90°, 135°, 180°
+        Servo Presets: 60°, 75°, 90°, 105°, 120°
         DAC Presets: 0%, 25%, 50%, 75%, 100%
         
         These provide quick access to common values.
@@ -887,7 +1046,7 @@ class LEDArrayControllerGUI:
         3. Use "Individual" mode for precise positioning
         4. Monitor the communication log for issues
         5. Use manual device count if auto-detection fails
-        6. Check timeout warnings - they're usually harmless
+        6. Wait for "✓ Command completed successfully" before sending next command
         
         HARDWARE NOTES:
         
