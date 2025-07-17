@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SEEEDuino LED Array Controller GUI
+SOLAR GUI
 
 This GUI provides an interface for controlling SEEEDuino XIAO boards
 in a daisy-chained round-robin communication system.
@@ -36,7 +36,7 @@ import queue
 class LEDArrayControllerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("SEEEDuino LED Array Controller v1.0")
+        self.root.title("SOLAR GUI v1.0")
         self.root.geometry("1000x700")
         self.root.configure(bg='#f0f0f0')
         
@@ -900,7 +900,7 @@ class LEDArrayControllerGUI:
             if filename:
                 # Write log content to file
                 with open(filename, 'w', encoding='utf-8') as f:
-                    f.write("SEEEDuino LED Array Controller - Communication Log\n")
+                    f.write("SOLAR- Communication Log\n")
                     f.write("=" * 50 + "\n")
                     f.write(f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                     f.write(f"Total Devices: {self.total_devices}\n")
@@ -1110,7 +1110,7 @@ class LEDArrayControllerGUI:
     def show_help_window(self):
         """Show comprehensive GUI help window"""
         help_window = tk.Toplevel(self.root)
-        help_window.title("SEEEDuino LED Array Controller - Help")
+        help_window.title("SOLAR- Help")
         help_window.geometry("800x600")
         help_window.configure(bg='#f0f0f0')
         
@@ -1123,7 +1123,7 @@ class LEDArrayControllerGUI:
         
         # Help content
         help_content = """
-        SEEEDuino LED Array Controller GUI - Complete User Guide
+        SOLAR GUI - Complete User Guide
         ========================================================
         
         🚀 WHAT THIS SYSTEM DOES:
