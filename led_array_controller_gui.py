@@ -331,16 +331,16 @@ class LEDArrayControllerGUI:
         self.dac_device_label.configure(state="disabled")
         self.dac_device_combo.configure(state="disabled")
         
-        # Percentage control
-        ttk.Label(dac_frame, text="Output (%):").grid(row=2, column=0, sticky=tk.W, pady=(0, 5))
-        self.dac_percent_var = tk.IntVar(value=0)
-        dac_percent_spin = ttk.Spinbox(dac_frame, from_=0, to=100, width=10, 
-                                      textvariable=self.dac_percent_var)
-        dac_percent_spin.grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=(0, 5))
+                # Current control (mA)
+        ttk.Label(dac_frame, text="Current (mA):").grid(row=2, column=0, sticky=tk.W, pady=(0, 5))
+        self.dac_current_var = tk.IntVar(value=0)
+        dac_current_spin = ttk.Spinbox(dac_frame, from_=0, to=2100, width=10, 
+                                      textvariable=self.dac_current_var)
+        dac_current_spin.grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=(0, 5))
         
-        # Percentage slider
-        self.dac_scale = ttk.Scale(dac_frame, from_=0, to=100, orient=tk.HORIZONTAL,
-                                  variable=self.dac_percent_var, length=250,
+        # Current slider
+        self.dac_scale = ttk.Scale(dac_frame, from_=0, to=2100, orient=tk.HORIZONTAL,
+                                  variable=self.dac_current_var, length=250,
                                   command=self.update_dac_display)
         self.dac_scale.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 10))
         
@@ -349,23 +349,23 @@ class LEDArrayControllerGUI:
         self.dac_raw_var = tk.StringVar(value="0")
         ttk.Label(dac_frame, textvariable=self.dac_raw_var).grid(row=4, column=1, sticky=tk.W, padx=(5, 0), pady=(0, 5))
         
-        # Update raw value when percentage changes
-        self.dac_percent_var.trace('w', self.update_dac_raw_value)
+        # Update raw value when current changes
+        self.dac_current_var.trace('w', self.update_dac_raw_value)
         
         # Preset buttons
         preset_frame = ttk.Frame(dac_frame)
         preset_frame.grid(row=5, column=0, columnspan=2, pady=(10, 0))
         
-        ttk.Button(preset_frame, text="0%", width=6,
-                  command=lambda: self.set_dac_percent(0)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="25%", width=6,
-                  command=lambda: self.set_dac_percent(25)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="50%", width=6,
-                  command=lambda: self.set_dac_percent(50)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="75%", width=6,
-                  command=lambda: self.set_dac_percent(75)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="100%", width=6,
-                  command=lambda: self.set_dac_percent(100)).pack(side=tk.LEFT)
+        ttk.Button(preset_frame, text="0mA", width=7,
+                  command=lambda: self.set_dac_current(0)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="525mA", width=7,
+                  command=lambda: self.set_dac_current(525)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="1050mA", width=7,
+                  command=lambda: self.set_dac_current(1050)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="1575mA", width=7,
+                  command=lambda: self.set_dac_current(1575)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="2100mA", width=7,
+                  command=lambda: self.set_dac_current(2100)).pack(side=tk.LEFT)
         
         # Send button with dynamic text
         self.dac_send_btn = ttk.Button(dac_frame, text="Send to All LEDs", 
@@ -622,12 +622,12 @@ class LEDArrayControllerGUI:
                         self.log_message(f"🎯 Servo on device {device_id} set to {angle}°")
                 elif message_type == 'dac_feedback':
                     raw_value = data
-                    percentage = int((raw_value / 1023.0) * 100)
+                    current_ma = int((raw_value / 1023.0) * 2100)
                     if self.dac_mode_var.get() == "all":
-                        self.log_message(f"💡 All DACs set to {percentage}% (raw: {raw_value})")
+                        self.log_message(f"💡 All DACs set to {current_ma}mA (raw: {raw_value})")
                     else:
                         device_id = self.dac_device_var.get()
-                        self.log_message(f"💡 DAC on device {device_id} set to {percentage}% (raw: {raw_value})")
+                        self.log_message(f"💡 DAC on device {device_id} set to {current_ma}mA (raw: {raw_value})")
                 elif message_type == 'error':
                     self.log_message(data)
                     
@@ -739,30 +739,31 @@ class LEDArrayControllerGUI:
             messagebox.showwarning("Wait", "Please wait for previous command to complete")
             return
             
-        percent = self.dac_percent_var.get()
+        current_ma = self.dac_current_var.get()
         
         try:
-            percent_int = int(percent)
-            if 0 <= percent_int <= 100:
-                # Convert percentage to 10-bit DAC value (0-1023)
-                dac_value = int((percent_int / 100.0) * 1023)
+            current_int = int(current_ma)
+            if 0 <= current_int <= 2100:
+                # Convert current (mA) to 10-bit DAC value (0-1023)
+                # 0-2100mA maps to 0-1023 raw value
+                dac_value = int((current_int / 2100.0) * 1023)
                 
                 if self.dac_mode_var.get() == "all":
                     # Send to all devices
                     device_id = "000"
                     command = f"{device_id},dac,{dac_value}"
                     if self.send_command_with_eot_tracking(command):
-                        self.log_message(f"DAC command sent to ALL LEDs: {percent_int}% (Raw: {dac_value})")
+                        self.log_message(f"DAC command sent to ALL LEDs: {current_int}mA (Raw: {dac_value})")
                 else:
                     # Send to individual device
                     device_id = self.dac_device_var.get()
                     command = f"{device_id},dac,{dac_value}"
                     if self.send_command_with_eot_tracking(command):
-                        self.log_message(f"DAC command sent to Device {device_id}: {percent_int}% (Raw: {dac_value})")
+                        self.log_message(f"DAC command sent to Device {device_id}: {current_int}mA (Raw: {dac_value})")
             else:
-                messagebox.showerror("Error", "DAC percentage must be between 0 and 100")
+                messagebox.showerror("Error", "Current must be between 0 and 2100 mA")
         except ValueError:
-            messagebox.showerror("Error", "Invalid DAC percentage value")
+            messagebox.showerror("Error", "Invalid current value")
             
     def send_command_with_recovery(self, command):
         """Send command with automatic recovery on timeout"""
@@ -838,15 +839,16 @@ class LEDArrayControllerGUI:
         
 
         
-    def set_dac_percent(self, percent):
-        """Set DAC percentage from preset button"""
-        self.dac_percent_var.set(percent)
+    def set_dac_current(self, current_ma):
+        """Set DAC current from preset button"""
+        self.dac_current_var.set(current_ma)
         
     def update_dac_raw_value(self, *args):
-        """Update raw DAC value display when percentage changes"""
+        """Update raw DAC value display when current changes"""
         try:
-            percent = int(self.dac_percent_var.get())
-            raw_value = int((percent / 100.0) * 1023)
+            current_ma = int(self.dac_current_var.get())
+            # Convert 0-2100mA to 0-1023 raw value
+            raw_value = int((current_ma / 2100.0) * 1023)
             self.dac_raw_var.set(str(raw_value))
         except (ValueError, AttributeError):
             self.dac_raw_var.set("0")
@@ -860,10 +862,10 @@ class LEDArrayControllerGUI:
             pass
             
     def update_dac_display(self, value):
-        """Update DAC percentage display to show integer values"""
+        """Update DAC current display to show integer values"""
         try:
             int_value = int(float(value))
-            self.dac_percent_var.set(int_value)
+            self.dac_current_var.set(int_value)
         except (ValueError, TypeError):
             pass
             
@@ -951,9 +953,10 @@ class LEDArrayControllerGUI:
                     self.send_command("000,servo,120")
                     time.sleep(0.8)
                 
-                # DAC to 50%
+                # DAC to 1050mA (50% of 2100mA)
                 if self.demo_running:
-                    self.send_command("000,dac,512")  # 50% = 512/1023
+                    dac_value = int((1050 / 2100.0) * 1023)  # 1050mA = 512/1023 raw
+                    self.send_command(f"000,dac,{dac_value}")
                     time.sleep(0.5)
                 
                 # Servo to 90°
@@ -961,7 +964,7 @@ class LEDArrayControllerGUI:
                     self.send_command("000,servo,90")
                     time.sleep(0.5)
                 
-                # DAC to 0%
+                # DAC to 0mA
                 if self.demo_running:
                     self.send_command("000,dac,0")
                     time.sleep(0.8)
@@ -1043,11 +1046,11 @@ class LEDArrayControllerGUI:
                 if not self.demo_running:
                     break
                     
-                # Fade up: 0% to 100%
-                for percent in range(0, 101, 10):
+                # Fade up: 0mA to 2100mA
+                for current_ma in range(0, 2101, 210):
                     if not self.demo_running:
                         break
-                    dac_value = int((percent / 100.0) * 1023)
+                    dac_value = int((current_ma / 2100.0) * 1023)
                     self.send_command(f"000,dac,{dac_value}")
                     time.sleep(0.2)
                 
@@ -1055,11 +1058,11 @@ class LEDArrayControllerGUI:
                 if self.demo_running:
                     time.sleep(0.5)
                 
-                # Fade down: 100% to 0%
-                for percent in range(100, -1, -10):
+                # Fade down: 2100mA to 0mA
+                for current_ma in range(2100, -1, -210):
                     if not self.demo_running:
                         break
-                    dac_value = int((percent / 100.0) * 1023)
+                    dac_value = int((current_ma / 2100.0) * 1023)
                     self.send_command(f"000,dac,{dac_value}")
                     time.sleep(0.2)
                 
@@ -1120,135 +1123,188 @@ class LEDArrayControllerGUI:
         
         # Help content
         help_content = """
-        SEEEDuino LED Array Controller GUI - User Guide
-        ===============================================
+        SEEEDuino LED Array Controller GUI - Complete User Guide
+        ========================================================
         
-        DEVICE NUMBERING SYSTEM:
-        • 000 = ALL DEVICES (Broadcast command)
+        🚀 WHAT THIS SYSTEM DOES:
+        
+        This GUI controls a smart chain of SEEEDuino XIAO controllers that can:
+        • Control LED brightness on multiple devices simultaneously or individually
+        • Move servo motors to precise positions (60-120 degrees)  
+        • Communicate through a daisy-chain setup (like Christmas lights, but smarter!)
+        • Automatically detect how many devices are connected
+        • Provide visual feedback when something goes wrong
+        
+        Think of it as a "conductor" for an orchestra of LED arrays and servo motors!
+        
+        📍 HARDWARE SETUP:
+        
+        Pin Connections (on each XIAO board):
+        • A0 = DAC Output → LED Array Control (amplified)
+        • D2 = PWM Output → Servo Motor (5V logic level)
+        • D1 = RX_READY ← Signal from previous device
+        • D3 = TX_READY → Signal to next device
+        • D6 = TX → Data to next device
+        • D7 = RX ← Data from previous device
+        • D10 = User LED (built-in status indicator)
+        
+        Chain Configuration:
+        [Master Device] → [Device 2] → [Device 3] → ... → [Back to Master]
+            (USB)           (12V)        (12V)
+        
+        🎯 DEVICE NUMBERING SYSTEM:
+        
+        • 000 = ALL DEVICES (Broadcast to entire chain)
         • 001 = Master Device (Connected to computer via USB)
-        • 002, 003, 004... = Slave Devices (In daisy-chain)
+        • 002, 003, 004... = Slave Devices (Powered externally, in daisy-chain)
         
-        SERVO CONTROL MODES:
+        🎮 GUI CONTROL SECTIONS:
         
-        1. ALL SERVOS (DISK MODE):
-           • Commands all servos simultaneously
-           • Perfect for synchronized rotation
-           • Uses device ID 000 automatically
-           • Example: All servos move to 90° together
+        1. SERIAL CONNECTION:
+           • Port Selection: Choose your USB COM port
+           • Baud Rate: Set to 115200 (matches Arduino)
+           • Auto-Connect: Automatically connects to first available port
+           • Refresh: Scan for new ports
         
-        2. INDIVIDUAL SERVO MODE:
-           • Target specific devices (001, 002, 003...)
-           • Precise control of single servos
-           • Select device from dropdown
-           • Example: Only device 002 servo moves to 75°
+        2. SYSTEM STATUS:
+           • Connection Status: Green=Connected, Red=Disconnected
+           • Total Devices: Auto-detected device count in chain
+           • System State: Ready, Initializing, Processing, etc.
+           • Manual Commands: Device Status, Re-initialize, Help
         
-        DAC (LED) CONTROL:
-        • 000 = All LEDs (synchronized brightness)
-        • 001, 002, 003... = Individual device LEDs
-        • Control via percentage (0-100%)
-        • Automatic conversion to 10-bit values (0-1023)
+        3. DEMO PATTERNS:
+           • 🕺 Simple Dance: Servo sweep + DAC flash (2 cycles)
+           • 🌊 Servo Wave: Smooth servo oscillation (2 cycles)
+           • 🌈 DAC Rainbow: Progressive brightness fade (2 cycles)
+           • ⏹️ Stop Demo: Interrupt any running demo
         
-        COMMAND EXAMPLES:
+        4. SERVO CONTROL:
+           • Range: 60-120 degrees (safety limited)
+           • All Servos Mode: Synchronize all devices (Disk Mode)
+           • Individual Mode: Target specific device (001, 002, etc.)
+           • Presets: 60°, 75°, 90°, 105°, 120°
+           • Real-time Slider: Live angle adjustment
         
-        Servo Commands:
-        • All servos to 90°: Uses mode "All Servos", angle=90
-        • Device 2 servo to 75°: Uses mode "Individual", device=002, angle=75
-        • Device 1 servo to 105°: Uses mode "Individual", device=001, angle=105
+        5. DAC/LED CONTROL:
+           • Range: 0-2100mA (automatically converted to 0-1023 raw)
+           • All LEDs Mode: Broadcast to entire chain
+           • Individual Mode: Target specific device
+           • Presets: 0mA, 525mA, 1050mA, 1575mA, 2100mA
+           • Raw Value Display: Shows actual DAC value sent
         
-        DAC/LED Commands:
-        • All LEDs to 50%: Device=000, percentage=50% (→ raw value 512)
-        • Device 3 LED to 75%: Device=003, percentage=75% (→ raw value 768)
-        • Device 1 LED off: Device=001, percentage=0% (→ raw value 0)
+        6. COMMUNICATION LOG:
+           • TX: Commands sent from GUI to Arduino
+           • RX: Responses received from Arduino (filtered)
+           • Timestamps: All communications timestamped
+           • Export/Clear: Save logs or clear display
         
-        CONNECTION SETUP:
+        🎯 COMMAND EXAMPLES:
         
-        1. Hardware Connection:
-           • Connect master device (001) to computer via USB
-           • Daisy-chain: 001→002→003→...→001 (round-robin)
-           • TX of device N connects to RX of device N+1
-           • Last device TX connects back to master RX
+        Servo Commands (GUI generates these automatically):
+        • All servos to 90°: "000,servo,90"
+        • Device 2 servo to 75°: "002,servo,75"
+        • Device 1 servo to 120°: "001,servo,120"
+        
+        DAC/LED Commands (current in mA):
+        • All LEDs to 1050mA: "000,dac,512" (50% brightness)
+        • Device 3 LED to 1575mA: "003,dac,768" (75% brightness)
+        • Turn off device 1 LEDs: "001,dac,0" (0mA)
+        
+        System Commands:
+        • "status" - Check device count and system state
+        • "reinit" - Restart device chain detection
+        
+        🔧 CONNECTION PROCESS:
+        
+        1. Hardware Setup:
+           • Connect master device to computer via USB
+           • Connect 12V power to all slave devices
+           • Verify daisy-chain wiring is correct
         
         2. Software Connection:
-           • Select correct COM port from dropdown
-           • Set baud rate to 115200 (matches Arduino)
-           • Click "Connect"
-           • Wait for device initialization (5-10 seconds)
-           • Check "Total Devices" count
+           • Launch GUI (auto-connects to first port)
+           • Or manually select COM port and click "Connect"
+           • Wait 5-10 seconds for device initialization
+           • Check "Total Devices" shows correct count
         
-        TROUBLESHOOTING:
+        3. Test System:
+           • Click "Device Status" to verify all devices
+           • Try a simple servo command (e.g., All Servos to 90°)
+           • Watch for "✓ Command completed successfully"
         
-        Device Detection Issues:
-        • Use "Manual Count" to set device count (e.g., 2 or 3)
-        • Click "Re-initialize" to restart detection
-        • Check physical connections in daisy-chain
-        • Ensure all devices are powered
+        🚨 TROUBLESHOOTING:
         
-        Command Completion:
-        • Commands complete when "EOT" message appears
-        • GUI shows "✓ Command completed successfully" when done
-        • Wait for completion before sending next command
-        • round-trip confirmation system
+        Visual Indicators on Hardware:
+        • Blue LED Stuck On: Device error - press reset button on PCB
+        • Orange LED Blinking: Normal state indication
+        • User LED Active: When DAC output > 0
+        
+        Common Issues:
+        
+        Device Detection Problems:
+        • Symptom: "Total Devices" shows 0 or wrong count
+        • Solution: Click "Re-initialize" to restart detection
+        • Check: Verify all devices are powered and connected
+        • Verify: Physical daisy-chain connections are correct
         
         Command Not Working:
-        • Check device is detected (see "Total Devices")
-        • Verify device ID is in valid range (001 to detected count)
-        • Ensure servo angles are 60-120°
-        • Ensure DAC percentages are 0-100%
-        • Check communication log for error messages
+        • Check: Device count matches your hardware
+        • Verify: Servo angles are within 60-120°
+        • Verify: DAC current is within 0-2100mA
+        • Check: Communication log for error messages
+        • Try: "Device Status" to check system health
         
-        PRESET BUTTONS:
+        Chain Communication Failure:
+        • Symptom: Commands timeout or devices don't respond
+        • Solution: Press reset button on any stuck device (blue LED on)
+        • Check: All power connections and daisy-chain wiring
+        • Try: Disconnect/reconnect USB and restart GUI
         
-        Servo Presets: 60°, 75°, 90°, 105°, 120°
-        DAC Presets: 0%, 25%, 50%, 75%, 100%
+        Wrong Device Count:
+        • Symptom: GUI shows wrong number of devices
+        • Solution: Click "Re-initialize" in System Status
+        • Check: Power all devices before connecting USB
+        • Verify: No broken connections in the chain
         
-        These provide quick access to common values.
+        🎯 BEST PRACTICES:
         
-        STATUS INDICATORS:
+        1. Startup Sequence:
+           • Power all slave devices with 12V first
+           • Then connect master device USB to computer
+           • Launch GUI and wait for initialization
         
-        • Connection: Green="Connected", Red="Disconnected"
-        • Total Devices: Number of detected devices in chain
-        • System State: READY, PROCESSING, INIT_WAITING, etc.
+        2. Operation:
+           • Always wait for "✓ Command completed successfully"
+           • Use "All" modes for synchronized movements
+           • Use "Individual" modes for precise control
+           • Monitor communication log for issues
         
-        COMMUNICATION LOG:
+        3. Demos:
+           • Demos run for 2 complete cycles automatically
+           • Use "Stop Demo" to interrupt any demo
+           • Demos sync with current system state
+           • Perfect for testing your complete setup
         
-        • TX: Commands sent from GUI to Arduino
-        • RX: Responses received from Arduino
-        • Timestamps for all communications
-        • Useful for debugging connection issues
+        4. Troubleshooting:
+           • Export logs before reporting issues
+           • Check hardware connections first
+           • Use "Re-initialize" for detection problems
+           • Reset devices (button) if LEDs stuck on
         
-        MANUAL COMMANDS:
+        💡 TECHNICAL SPECIFICATIONS:
         
-        • Device Status: Query system status and device info
-        • Re-initialize: Restart device chain detection
-        • Help: Arduino's built-in command help (via serial)
+        • Microcontroller: SAMD21 (SEEEDuino XIAO)
+        • Communication: 115200 baud, round-robin protocol
+        • Servo Range: 60-120 degrees (safety limited)
+        • DAC Range: 0-2100mA (mapped to 0-1023 raw values)
+        • Max Chain Length: Limited by power and timing
+        • Auto-Discovery: Automatic device detection
+        • Error Recovery: Automatic timeout handling
         
-        ADVANCED FEATURES:
+        For advanced users: The Arduino code includes extensive
+        error checking and self-recovery features. Check the
+        communication log for detailed system messages.
         
-        Manual Device Count:
-        • Override automatic detection
-        • Useful when auto-detection fails
-        • Set count and click "Set" button
-        • Updates device dropdown lists
-        
-        BEST PRACTICES:
-        
-        1. Always wait for initialization to complete
-        2. Use "All Servos" mode for synchronized movements
-        3. Use "Individual" mode for precise positioning
-        4. Monitor the communication log for issues
-        5. Use manual device count if auto-detection fails
-        6. Wait for "✓ Command completed successfully" before sending next command
-        
-        HARDWARE NOTES:
-        
-        • Master device (001) must be connected via USB
-        • Slave devices get power through daisy-chain
-        • Each device has one servo and one DAC output
-        • Round-robin ensures all devices receive commands
-        • Commands loop through the entire chain
-        
-        For technical support, check the communication log
-        and verify all physical connections.
         """
         
         help_text.insert(tk.END, help_content)
