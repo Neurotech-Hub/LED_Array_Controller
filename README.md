@@ -6,7 +6,7 @@ A Python GUI application for controlling SEEEDuino XIAO (SAMD21) boards in a dai
 
 ## Overview
 
-The LED Array Controller GUI enables seamless control of multiple SEEEDuino XIAO boards arranged in a daisy chain. Each board can control a servo motor (60-120 degrees, safety limited) and an LED array via DAC output (0-2100mA current control). The system uses a round-robin communication protocol where commands are passed from one device to the next, allowing for both synchronized and individual device control.
+The LED Array Controller GUI enables seamless control of multiple SEEEDuino XIAO boards arranged in a daisy chain. Each board can control a servo motor (60-120 degrees, safety limited) and an LED array via DAC output (0-1500mA current control, safety limited considering the LED current limit). The system uses a round-robin communication protocol where commands are passed from one device to the next, allowing for both synchronized and individual device control.
 
 ## 🚀 What This System Does
 
@@ -24,7 +24,7 @@ Think of it as a "conductor" for an orchestra of LED arrays and servo motors!
 
 - **Serial Port Management**: Automatic port scanning, connection, and auto-connect to first available port
 - **Servo Control**: Set servo angles from 60-120 degrees with preset buttons, slider, and dual control modes
-- **Current-Based DAC Control**: Control DAC output via current (0-2100mA) with automatic conversion to 10-bit values (0-1023)
+- **Current-Based DAC Control**: Control DAC output via current (0-1500mA, safety limited) with automatic conversion to 10-bit values (0-730)
 - **Device Targeting**: Command all devices (000) or target specific devices individually with smart mode switching
 - **Real-time Status**: Monitor connection status, device count, and system state with color-coded indicators
 - **Demo Patterns**: Three built-in demo patterns with synchronized execution and stop functionality
@@ -45,7 +45,7 @@ Think of it as a "conductor" for an orchestra of LED arrays and servo motors!
 
 | Pin | Function | Connection |
 |-----|----------|------------|
-| A0  | DAC Output | → LED Array Control (amplified, 0-2100mA) |
+| A0  | DAC Output | → LED Array Control (amplified, 0-1500mA max) |
 | D2  | PWM Output | → Servo Motor (5V logic level, 60-120°) |
 | D1  | RX_READY | ← Signal from previous device |
 | D3  | TX_READY | → Signal to next device |
@@ -96,20 +96,20 @@ Think of it as a "conductor" for an orchestra of LED arrays and servo motors!
 - **Controls**: Slider, spinbox, or preset buttons (60°, 75°, 90°, 105°, 120°)
 - **Real-time**: Live angle adjustment with immediate feedback
 
-#### DAC/LED Control (0-2100mA current-based)
+#### DAC/LED Control (0-1500mA current-based, safety limited)
 - **All LEDs Mode**: Broadcast to entire chain
 - **Individual Mode**: Target specific device
-- **Current Control**: Set output from 0-2100mA using slider, spinbox, or presets
-- **Raw Value Display**: Shows converted 10-bit DAC value (0-1023)
-- **Presets**: 0mA, 525mA, 1050mA, 1575mA, 2100mA
+- **Current Control**: Set output from 0-1500mA using slider, spinbox, or presets
+- **Raw Value Display**: Shows converted 10-bit DAC value (0-730)
+- **Presets**: 0mA, 375mA, 750mA, 1125mA, 1500mA
 
 ### Demo Patterns
 
 The GUI includes three entertaining demo patterns perfect for testing and demonstration:
 
-1. **🕺 Simple Dance**: Servo sweep (60°→120°→90°) + DAC flash (1050mA→0mA), runs 2 cycles
+1. **🕺 Simple Dance**: Servo sweep (60°→120°→90°) + DAC flash (750mA→0mA), runs 2 cycles
 2. **🌊 Servo Wave**: Smooth servo oscillation with gradual movements, runs 2 cycles  
-3. **🌈 DAC Rainbow**: Progressive brightness fade (0→2100mA→0), runs 2 cycles
+3. **🌈 DAC Rainbow**: Progressive brightness fade (0→1500mA→0), runs 2 cycles
 
 All demos:
 - Run automatically for 2 complete cycles
@@ -132,7 +132,7 @@ deviceId,command,value
 
 Examples:
 - `002,servo,90` - Set device 2 servo to 90 degrees
-- `000,dac,512` - Set all devices DAC to 1050mA (50% of 2100mA)
+- `000,dac,365` - Set all devices DAC to 750mA (50% of 1500mA limit)
 - `001,servo,120` - Set device 1 servo to 120 degrees
 - `003,dac,0` - Turn off device 3 LEDs
 
@@ -198,7 +198,7 @@ The system uses a sophisticated round-robin communication protocol:
 2. **Command Not Working**
    - **Check**: Device count matches your physical hardware
    - **Verify**: Servo angles are within 60-120° (safety limited)
-   - **Verify**: DAC current is within 0-2100mA range
+   - **Verify**: DAC current is within 0-1500mA range (safety limited)
    - **Monitor**: Communication log for error messages
    - **Test**: Use "Device Status" to check system health
 
@@ -229,7 +229,7 @@ The system uses a sophisticated round-robin communication protocol:
 - **Microcontroller**: SAMD21 (SEEEDuino XIAO)
 - **Communication**: 115200 baud, round-robin protocol with auto-discovery
 - **Servo Range**: 60-120 degrees (safety limited from full 0-180° range)
-- **DAC Range**: 0-2100mA (mapped to 0-1023 raw 10-bit values)
+- **DAC Range**: 0-1500mA (safety limited, mapped to 0-730 raw values)
 - **Max Chain Length**: Limited by power supply and timing constraints
 - **Auto-Discovery**: Automatic device detection and ID assignment
 - **Error Recovery**: Timeout handling and automatic state recovery

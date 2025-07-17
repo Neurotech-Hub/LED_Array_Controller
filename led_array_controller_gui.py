@@ -331,15 +331,15 @@ class LEDArrayControllerGUI:
         self.dac_device_label.configure(state="disabled")
         self.dac_device_combo.configure(state="disabled")
         
-                # Current control (mA)
+                # Current control (mA) - Limited to 1500mA for safety
         ttk.Label(dac_frame, text="Current (mA):").grid(row=2, column=0, sticky=tk.W, pady=(0, 5))
         self.dac_current_var = tk.IntVar(value=0)
-        dac_current_spin = ttk.Spinbox(dac_frame, from_=0, to=2100, width=10, 
+        dac_current_spin = ttk.Spinbox(dac_frame, from_=0, to=1500, width=10, 
                                       textvariable=self.dac_current_var)
         dac_current_spin.grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=(0, 5))
         
-        # Current slider
-        self.dac_scale = ttk.Scale(dac_frame, from_=0, to=2100, orient=tk.HORIZONTAL,
+        # Current slider - Limited to 1500mA
+        self.dac_scale = ttk.Scale(dac_frame, from_=0, to=1500, orient=tk.HORIZONTAL,
                                   variable=self.dac_current_var, length=250,
                                   command=self.update_dac_display)
         self.dac_scale.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 10))
@@ -358,14 +358,14 @@ class LEDArrayControllerGUI:
         
         ttk.Button(preset_frame, text="0mA", width=7,
                   command=lambda: self.set_dac_current(0)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="525mA", width=7,
-                  command=lambda: self.set_dac_current(525)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="1050mA", width=7,
-                  command=lambda: self.set_dac_current(1050)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="1575mA", width=7,
-                  command=lambda: self.set_dac_current(1575)).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(preset_frame, text="2100mA", width=7,
-                  command=lambda: self.set_dac_current(2100)).pack(side=tk.LEFT)
+        ttk.Button(preset_frame, text="375mA", width=7,
+                  command=lambda: self.set_dac_current(375)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="750mA", width=7,
+                  command=lambda: self.set_dac_current(750)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="1125mA", width=7,
+                  command=lambda: self.set_dac_current(1125)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(preset_frame, text="1500mA", width=7,
+                  command=lambda: self.set_dac_current(1500)).pack(side=tk.LEFT)
         
         # Send button with dynamic text
         self.dac_send_btn = ttk.Button(dac_frame, text="Send to All LEDs", 
@@ -743,7 +743,7 @@ class LEDArrayControllerGUI:
         
         try:
             current_int = int(current_ma)
-            if 0 <= current_int <= 2100:
+            if 0 <= current_int <= 1500:
                 # Convert current (mA) to 10-bit DAC value (0-1023)
                 # 0-2100mA maps to 0-1023 raw value
                 dac_value = int((current_int / 2100.0) * 1023)
@@ -761,7 +761,7 @@ class LEDArrayControllerGUI:
                     if self.send_command_with_eot_tracking(command):
                         self.log_message(f"DAC command sent to Device {device_id}: {current_int}mA (Raw: {dac_value})")
             else:
-                messagebox.showerror("Error", "Current must be between 0 and 2100 mA")
+                messagebox.showerror("Error", "Current must be between 0 and 1500 mA (safety limit)")
         except ValueError:
             messagebox.showerror("Error", "Invalid current value")
             
@@ -847,7 +847,8 @@ class LEDArrayControllerGUI:
         """Update raw DAC value display when current changes"""
         try:
             current_ma = int(self.dac_current_var.get())
-            # Convert 0-2100mA to 0-1023 raw value
+            # Convert 0-2100mA to 0-1023 raw value (keeping original mapping)
+            # Maximum user input is 1500mA (safety limit) = raw value 730
             raw_value = int((current_ma / 2100.0) * 1023)
             self.dac_raw_var.set(str(raw_value))
         except (ValueError, AttributeError):
@@ -953,9 +954,9 @@ class LEDArrayControllerGUI:
                     self.send_command("000,servo,120")
                     time.sleep(0.8)
                 
-                # DAC to 1050mA (50% of 2100mA)
+                # DAC to 750mA (50% of 1500mA limit)
                 if self.demo_running:
-                    dac_value = int((1050 / 2100.0) * 1023)  # 1050mA = 512/1023 raw
+                    dac_value = int((750 / 2100.0) * 1023)  # 750mA within safety limit
                     self.send_command(f"000,dac,{dac_value}")
                     time.sleep(0.5)
                 
@@ -1046,8 +1047,8 @@ class LEDArrayControllerGUI:
                 if not self.demo_running:
                     break
                     
-                # Fade up: 0mA to 2100mA
-                for current_ma in range(0, 2101, 210):
+                # Fade up: 0mA to 1500mA (safety limit)
+                for current_ma in range(0, 1501, 150):
                     if not self.demo_running:
                         break
                     dac_value = int((current_ma / 2100.0) * 1023)
@@ -1058,8 +1059,8 @@ class LEDArrayControllerGUI:
                 if self.demo_running:
                     time.sleep(0.5)
                 
-                # Fade down: 2100mA to 0mA
-                for current_ma in range(2100, -1, -210):
+                # Fade down: 1500mA to 0mA
+                for current_ma in range(1500, -1, -150):
                     if not self.demo_running:
                         break
                     dac_value = int((current_ma / 2100.0) * 1023)
@@ -1186,10 +1187,10 @@ class LEDArrayControllerGUI:
            • Real-time Slider: Live angle adjustment
         
         5. DAC/LED CONTROL:
-           • Range: 0-2100mA (automatically converted to 0-1023 raw)
+           • Range: 0-1500mA (safety limited, converts to 0-730 raw)
            • All LEDs Mode: Broadcast to entire chain
            • Individual Mode: Target specific device
-           • Presets: 0mA, 525mA, 1050mA, 1575mA, 2100mA
+           • Presets: 0mA, 375mA, 750mA, 1125mA, 1500mA
            • Raw Value Display: Shows actual DAC value sent
         
         6. COMMUNICATION LOG:
@@ -1205,9 +1206,9 @@ class LEDArrayControllerGUI:
         • Device 2 servo to 75°: "002,servo,75"
         • Device 1 servo to 120°: "001,servo,120"
         
-        DAC/LED Commands (current in mA):
-        • All LEDs to 1050mA: "000,dac,512" (50% brightness)
-        • Device 3 LED to 1575mA: "003,dac,768" (75% brightness)
+        DAC/LED Commands (current in mA, max 1500mA):
+        • All LEDs to 750mA: "000,dac,365" (50% of limit)
+        • Device 3 LED to 1125mA: "003,dac,548" (75% of limit)
         • Turn off device 1 LEDs: "001,dac,0" (0mA)
         
         System Commands:
@@ -1250,7 +1251,7 @@ class LEDArrayControllerGUI:
         Command Not Working:
         • Check: Device count matches your hardware
         • Verify: Servo angles are within 60-120°
-        • Verify: DAC current is within 0-2100mA
+        • Verify: DAC current is within 0-1500mA (safety limit)
         • Check: Communication log for error messages
         • Try: "Device Status" to check system health
         
@@ -1296,7 +1297,7 @@ class LEDArrayControllerGUI:
         • Microcontroller: SAMD21 (SEEEDuino XIAO)
         • Communication: 115200 baud, round-robin protocol
         • Servo Range: 60-120 degrees (safety limited)
-        • DAC Range: 0-2100mA (mapped to 0-1023 raw values)
+        • DAC Range: 0-1500mA (safety limited, mapped to 0-730 raw values)
         • Max Chain Length: Limited by power and timing
         • Auto-Discovery: Automatic device detection
         • Error Recovery: Automatic timeout handling
