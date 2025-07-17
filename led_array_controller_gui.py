@@ -61,6 +61,9 @@ class LEDArrayControllerGUI:
         # Command completion tracking
         self.waiting_for_eot = False
         
+        # Demo status variable (referenced in update_gui but needs initialization)
+        self.demo_status_var = tk.StringVar(value="Ready for demos")
+        
         # Create GUI elements
         self.create_widgets()
         self.update_port_list()
@@ -82,6 +85,7 @@ class LEDArrayControllerGUI:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
+        main_frame.columnconfigure(2, weight=1)
         main_frame.rowconfigure(2, weight=1)
         
         # === Connection Section ===
@@ -90,9 +94,12 @@ class LEDArrayControllerGUI:
         # === Device Status Section ===
         self.create_status_section(main_frame, 0, 1)
         
+        # === Demo Section ===
+        self.create_demo_section(main_frame, 0, 2)
+        
         # === Control Sections ===
         control_frame = ttk.Frame(main_frame)
-        control_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
+        control_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
         control_frame.columnconfigure(0, weight=1)
         control_frame.columnconfigure(1, weight=1)
         control_frame.columnconfigure(2, weight=1)
@@ -161,21 +168,9 @@ class LEDArrayControllerGUI:
         self.system_state_var = tk.StringVar(value="Unknown")
         ttk.Label(status_frame, textvariable=self.system_state_var).grid(row=2, column=1, sticky=tk.W, padx=(5, 0))
         
-        # Manual device count override (for debugging)
-        manual_count_frame = ttk.Frame(status_frame)
-        manual_count_frame.grid(row=3, column=0, columnspan=2, pady=(5, 0), sticky="we")
-        
-        ttk.Label(manual_count_frame, text="Manual Count:").pack(side=tk.LEFT)
-        self.manual_count_var = tk.StringVar(value="2")
-        ttk.Spinbox(manual_count_frame, from_=1, to=10, width=5, 
-                   textvariable=self.manual_count_var).pack(side=tk.LEFT, padx=(5, 5))
-        ttk.Button(manual_count_frame, text="Set", 
-                  command=self.set_manual_device_count).pack(side=tk.LEFT)
-        
-
         # Manual commands
         manual_frame = ttk.Frame(status_frame)
-        manual_frame.grid(row=4, column=0, columnspan=2, pady=(10, 0), sticky=(tk.W, tk.E))
+        manual_frame.grid(row=3, column=0, columnspan=2, pady=(10, 0), sticky=(tk.W, tk.E))
         
         ttk.Button(manual_frame, text="Device Status", 
                   command=lambda: self.send_command("status")).pack(side=tk.LEFT, padx=(0, 5))
@@ -183,6 +178,46 @@ class LEDArrayControllerGUI:
                   command=lambda: self.send_command("reinit")).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(manual_frame, text="Help", 
                   command=self.show_help_window).pack(side=tk.LEFT)
+        
+    def create_demo_section(self, parent, row, col):
+        """Create demo pattern controls"""
+        demo_frame = ttk.LabelFrame(parent, text="Demo Patterns", padding="10")
+        demo_frame.grid(row=row, column=col, sticky=(tk.W, tk.E, tk.N), padx=(5, 0))
+        
+        # Demo 1: Servo Dance
+        demo1_frame = ttk.Frame(demo_frame)
+        demo1_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 5))
+        
+        self.demo1_btn = ttk.Button(demo1_frame, text="🕺 Servo Dance", 
+                                   command=self.start_dance, width=20)
+        self.demo1_btn.pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(demo1_frame, text="Servo sweep + DAC flash", 
+                 foreground="gray", font=("Arial", 8)).pack(side=tk.LEFT)
+        
+        # Demo 2: Servo Wave
+        demo2_frame = ttk.Frame(demo_frame)
+        demo2_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 5))
+        
+        self.demo2_btn = ttk.Button(demo2_frame, text="🌊 Servo Wave", 
+                                   command=self.start_servo_wave, width=20)
+        self.demo2_btn.pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(demo2_frame, text="Smooth servo oscillation", 
+                 foreground="gray", font=("Arial", 8)).pack(side=tk.LEFT)
+        
+        # Demo 3: DAC Rainbow
+        demo3_frame = ttk.Frame(demo_frame)
+        demo3_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 5))
+        
+        self.demo3_btn = ttk.Button(demo3_frame, text="🌈 DAC Rainbow", 
+                                   command=self.start_dac_rainbow, width=20)
+        self.demo3_btn.pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(demo3_frame, text="Progressive brightness fade", 
+                 foreground="gray", font=("Arial", 8)).pack(side=tk.LEFT)
+        
+        # Stop demo button
+        self.stop_demo_btn = ttk.Button(demo_frame, text="⏹️ Stop Demo", 
+                                       command=self.stop_demo, state="disabled")
+        self.stop_demo_btn.grid(row=4, column=0, columnspan=2, pady=(10, 0))
         
     def create_servo_section(self, parent, row, col):
         """Create servo control section with dual modes"""
@@ -256,11 +291,7 @@ class LEDArrayControllerGUI:
         
         self.servo_send_btn = ttk.Button(button_frame, text="Send to All Servos", 
                                         command=self.send_servo_command)
-        self.servo_send_btn.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.demo_btn = ttk.Button(button_frame, text="Demo Mode", 
-                                  command=self.start_servo_demo)
-        self.demo_btn.pack(side=tk.LEFT)
+        self.servo_send_btn.pack(side=tk.LEFT)
         
     def create_dac_section(self, parent, row, col):
         """Create DAC control section with dual modes"""
@@ -344,7 +375,7 @@ class LEDArrayControllerGUI:
     def create_log_section(self, parent, row, col):
         """Create command log and output section"""
         log_frame = ttk.LabelFrame(parent, text="Communication Log", padding="10")
-        log_frame.grid(row=row, column=col, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
+        log_frame.grid(row=row, column=col, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
         
@@ -459,52 +490,80 @@ class LEDArrayControllerGUI:
                 if self.serial_connection and self.serial_connection.in_waiting:
                     line = self.serial_connection.readline().decode('utf-8', errors='ignore').strip()
                     if line:
-                        self.message_queue.put(('receive', line))
+                        # Filter out DEBUG messages before any processing
+                        if line.startswith("DEBUG:"):
+                            continue
                         
-                        # Parse device count from status messages
-                        if "Total devices:" in line or "Total Devices:" in line:
-                            match = re.search(r'Total [Dd]evices:\s*(\d+)', line)
-                            if match:
-                                self.total_devices = int(match.group(1))
+                        # Parse new Arduino protocol messages
+                        if line.startswith("TOTAL:"):
+                            total_match = re.search(r'TOTAL:(\d+)', line)
+                            if total_match:
+                                self.total_devices = int(total_match.group(1))
                                 self.message_queue.put(('device_count', self.total_devices))
                         
-                        # Parse initialization completion messages
-                        if "Initialization complete" in line and "Total devices:" in line:
-                            match = re.search(r'Total devices:\s*(\d+)', line)
-                            if match:
-                                self.total_devices = int(match.group(1))
+                        elif line.startswith("STATE:"):
+                            state_match = re.search(r'STATE:(.+)', line)
+                            if state_match:
+                                state_name = state_match.group(1).strip()
+                                self.message_queue.put(('system_state', state_name))
+                                
+                                # Add user-friendly state messages
+                                if state_name == "Chain Wait":
+                                    self.message_queue.put(('user_log', "🔗 Waiting for chain connection"))
+                                elif state_name == "Initializing":
+                                    self.message_queue.put(('user_log', "🚀 Starting device initialization"))
+                        
+                        elif line.startswith("VER:"):
+                            version_match = re.search(r'VER:(.+)', line)
+                            if version_match:
+                                version = version_match.group(1).strip()
+                                self.message_queue.put(('version', version))
+                        
+                        elif line.startswith("INIT:TOTAL:"):
+                            total_match = re.search(r'INIT:TOTAL:(\d+)', line)
+                            if total_match:
+                                self.total_devices = int(total_match.group(1))
                                 self.message_queue.put(('device_count', self.total_devices))
                                 self.message_queue.put(('init_complete', True))
                         
-                        # Parse master device startup messages for device counting
-                        if "Round Robin Master Started" in line:
-                            # Start counting devices from master initialization
-                            self.message_queue.put(('master_started', True))
-                                
-                        # Parse device initialization messages  
-                        if "Device initialized as ID:" in line:
-                            match = re.search(r'ID:\s*(\d+)', line)
-                            if match:
-                                device_id = int(match.group(1))
+                        elif line.startswith("INIT:DEV:"):
+                            dev_match = re.search(r'INIT:DEV:(\d+)', line)
+                            if dev_match:
+                                device_id = int(dev_match.group(1))
                                 self.message_queue.put(('device_initialized', device_id))
-                                
-                        # Parse system state
-                        if "Current State:" in line:
-                            state_match = re.search(r'Current State:\s*(\w+)', line)
-                            if state_match:
-                                self.message_queue.put(('system_state', state_match.group(1)))
                         
-                        # Parse command completion messages
-                        if "Command completed round trip:" in line:
+                        elif line == "EOT":
                             self.message_queue.put(('command_complete', True))
                         
-                        # Filter out verbose Arduino messages to reduce log clutter
-                        if any(phrase in line for phrase in [
-                            "Master Servo set to:",
-                            "Master DAC set to:"
-                        ]):
-                            # Skip logging these verbose messages
-                            continue
+                        elif line.startswith("UI:"):
+                            # User interface messages - strip UI: prefix and show
+                            ui_message = line[3:].strip()
+                            self.message_queue.put(('ui_message', ui_message))
+                        
+                        elif line.startswith("ERR:"):
+                            # Error messages
+                            error_message = line[4:].strip()
+                            self.message_queue.put(('error_message', error_message))
+                        
+                        elif line.startswith("SRV:"):
+                            # Parse servo feedback for value only: SRV:device:angle
+                            srv_match = re.search(r'SRV:(\d+):(\d+)', line)
+                            if srv_match:
+                                angle = int(srv_match.group(2))
+                                self.message_queue.put(('servo_feedback', angle))
+                        
+                        elif line.startswith("DAC:"):
+                            # Parse DAC feedback for value only: DAC:device:value
+                            dac_match = re.search(r'DAC:(\d+):(\d+)', line)
+                            if dac_match:
+                                raw_value = int(dac_match.group(2))
+                                self.message_queue.put(('dac_feedback', raw_value))
+                        
+                        # Only log non-filtered messages to RX log (filter out EOT, VER:, TOTAL:)
+                        if not (line.startswith("VER:") or line.startswith("TOTAL:") or 
+                        line.startswith("INIT:TOTAL:") or line.startswith("SRV:") or line.startswith("DAC:")
+                        or line.startswith("STATE:")):
+                            self.message_queue.put(('receive', line))
                                 
                 time.sleep(0.1)
             except Exception as e:
@@ -526,18 +585,49 @@ class LEDArrayControllerGUI:
                     self.log_message(f"Device count updated: {data} devices detected")
                 elif message_type == 'system_state':
                     self.system_state_var.set(data)
+                    # Sync demo status with system state (if not running a demo)
+                    if not self.demo_running:
+                        if data == "Ready":
+                            self.demo_status_var.set("Ready for demos")
+                        elif data == "Initializing":
+                            self.demo_status_var.set("System initializing...")
+                        elif data == "Processing":
+                            self.demo_status_var.set("Processing command...")
+                        elif data == "Waiting for Chain":
+                            self.demo_status_var.set("Waiting for chain...")
+                        else:
+                            self.demo_status_var.set(f"System: {data}")
                 elif message_type == 'command_complete':
                     if self.waiting_for_eot:
                         self.waiting_for_eot = False
                         self.log_message("✓ Command completed successfully")
-                    else:
-                        self.log_message("⚠️ Command completed but not waiting for any command")
-                elif message_type == 'master_started':
-                    self.log_message("Master device started - beginning device detection")
                 elif message_type == 'device_initialized':
                     self.log_message(f"Device {data:03d} initialized")
                 elif message_type == 'init_complete':
                     self.log_message("Device initialization complete")
+                elif message_type == 'version':
+                    self.log_message(f"Arduino Version: {data}")
+                elif message_type == 'ui_message':
+                    self.log_message(f"ℹ️ {data}")
+                elif message_type == 'error_message':
+                    self.log_message(f"❌ Error: {data}")
+                elif message_type == 'user_log':
+                    self.log_message(data)
+                elif message_type == 'servo_feedback':
+                    angle = data
+                    if self.servo_mode_var.get() == "all":
+                        self.log_message(f"🎯 All servos set to {angle}°")
+                    else:
+                        device_id = self.servo_device_var.get()
+                        self.log_message(f"🎯 Servo on device {device_id} set to {angle}°")
+                elif message_type == 'dac_feedback':
+                    raw_value = data
+                    percentage = int((raw_value / 1023.0) * 100)
+                    if self.dac_mode_var.get() == "all":
+                        self.log_message(f"💡 All DACs set to {percentage}% (raw: {raw_value})")
+                    else:
+                        device_id = self.dac_device_var.get()
+                        self.log_message(f"💡 DAC on device {device_id} set to {percentage}% (raw: {raw_value})")
                 elif message_type == 'error':
                     self.log_message(data)
                     
@@ -725,6 +815,9 @@ class LEDArrayControllerGUI:
             return False
             
         try:
+            # Log processing message before sending
+            self.log_message("⚙️ Processing command")
+            
             self.serial_connection.write(f"{command}\n".encode())
             self.log_message(f"TX: {command}")
             self.command_history.append(command)
@@ -743,84 +836,7 @@ class LEDArrayControllerGUI:
         """Set servo angle from preset button"""
         self.servo_angle_var.set(angle)
         
-    def start_servo_demo(self):
-        """Start servo demo pattern in a separate thread"""
-        if self.demo_running:
-            self.log_message("Demo already running - please wait for completion")
-            return
-            
-        if not self.connected:
-            messagebox.showerror("Error", "Not connected to device")
-            return
-            
-        # Start demo in separate thread to avoid blocking GUI
-        self.demo_running = True
-        self.demo_btn.configure(text="Demo Running...", state="disabled")
-        self.demo_thread = threading.Thread(target=self.run_servo_demo, daemon=True)
-        self.demo_thread.start()
-        
-    def run_servo_demo(self):
-        """Run the servo demo pattern"""
-        try:
-            self.log_message("Starting servo demo pattern...")
-            
-            for cycle in range(3):
-                if not self.demo_running:  # Check if demo was cancelled
-                    break
-                    
-                self.log_message(f"Demo cycle {cycle + 1}/3 - Forward sweep (60° to 120°)")
-                
-                # Forward sweep: 60 to 120
-                for angle in range(60, 120, 10):
-                    if not self.demo_running:
-                        break
-                        
-                    # Send command to all devices
-                    command = f"000,servo,{angle}"
-                    if self.send_command(command):
-                        self.log_message(f"Demo: All servos → {angle}°")
-                        self.root.after(0, lambda a=angle: self.servo_angle_var.set(a))
-                    
-                    time.sleep(0.5)
-                
-                if not self.demo_running:
-                    break
-                    
-                self.log_message(f"Demo cycle {cycle + 1}/3 - Backward sweep (120° to 60°)")
-                
-                self.send_command("000,dac,25")
 
-                # Backward sweep: 120 to 60
-                for angle in range(120, 60, -10):
-                    if not self.demo_running:
-                        break
-                        
-                    # Send command to all devices
-                    command = f"000,servo,{angle}"
-                    if self.send_command(command):
-                        self.log_message(f"Demo: All servos → {angle}°")
-                        # Update GUI slider to show current angle
-                        self.root.after(0, lambda a=angle: self.servo_angle_var.set(a))
-                    
-                    time.sleep(0.5)
-
-                self.send_command("000,dac,0")
-                    
-                # Small pause between cycles
-                if cycle < 1 and self.demo_running:
-                    time.sleep(1.0)
-                    
-        except Exception as e:
-            self.log_message(f"Demo error: {str(e)}")
-        finally:
-            # Reset demo state
-            self.demo_running = False
-            self.root.after(0, self.reset_demo_button)
-            self.log_message("Servo demo pattern completed")
-            
-    def reset_demo_button(self):
-        """Reset demo button state (must be called from main thread)"""
-        self.demo_btn.configure(text="Demo Mode", state="normal")
         
     def set_dac_percent(self, percent):
         """Set DAC percentage from preset button"""
@@ -898,20 +914,195 @@ class LEDArrayControllerGUI:
             self.log_message(error_msg)
             messagebox.showerror("Export Error", error_msg)
             
-    def set_manual_device_count(self):
-        """Manually set device count for debugging"""
+    # === DEMO METHODS ===
+    
+    def start_dance(self):
+        """Start Servo Dance demo: Servo 60→120→90, DAC 50%→0%, repeat 2x"""
+        if self.demo_running:
+            self.log_message("Demo already running - please wait for completion")
+            return
+        if not self.connected:
+            messagebox.showerror("Error", "Not connected to device")
+            return
+        
+        self.demo_running = True
+        self.demo_status_var.set("Running Servo Dance...")
+        self.disable_demo_buttons()
+        self.demo_thread = threading.Thread(target=self.run_dance, daemon=True)
+        self.demo_thread.start()
+        
+    def run_dance(self):
+        """Run dance pattern"""
         try:
-            count = int(self.manual_count_var.get())
-            if 1 <= count <= 10:
-                self.total_devices = count
-                self.device_count_var.set(str(count))
-                self.update_device_lists()
-                self.log_message(f"Manual device count set to: {count}")
-            else:
-                messagebox.showerror("Error", "Device count must be between 1 and 10")
-        except ValueError:
-            messagebox.showerror("Error", "Invalid device count value")
+            self.log_message("🕺 Starting Servo Dance demo...")
             
+            for cycle in range(2):  # Repeat 2 times
+                if not self.demo_running:
+                    break
+                    
+                self.log_message(f"Dance - Cycle {cycle + 1}/2")
+                
+                # Servo to 60°
+                self.send_command("000,servo,60")
+                time.sleep(0.8)
+                
+                # Servo to 120°
+                if self.demo_running:
+                    self.send_command("000,servo,120")
+                    time.sleep(0.8)
+                
+                # DAC to 50%
+                if self.demo_running:
+                    self.send_command("000,dac,512")  # 50% = 512/1023
+                    time.sleep(0.5)
+                
+                # Servo to 90°
+                if self.demo_running:
+                    self.send_command("000,servo,90")
+                    time.sleep(0.5)
+                
+                # DAC to 0%
+                if self.demo_running:
+                    self.send_command("000,dac,0")
+                    time.sleep(0.8)
+                    
+        except Exception as e:
+            self.log_message(f"Demo error: {str(e)}")
+        finally:
+            self.demo_running = False
+            self.root.after(0, self.reset_demo_state)
+            self.log_message("🕺 Servo Dance demo completed")
+    
+    def start_servo_wave(self):
+        """Start smooth servo wave demo"""
+        if self.demo_running:
+            self.log_message("Demo already running - please wait for completion")
+            return
+        if not self.connected:
+            messagebox.showerror("Error", "Not connected to device")
+            return
+            
+        self.demo_running = True
+        self.demo_status_var.set("Running Servo Wave...")
+        self.disable_demo_buttons()
+        self.demo_thread = threading.Thread(target=self.run_servo_wave, daemon=True)
+        self.demo_thread.start()
+        
+    def run_servo_wave(self):
+        """Run smooth servo wave pattern"""
+        try:
+            self.log_message("🌊 Starting Servo Wave demo...")
+            
+            # Create smooth wave motion
+            for cycle in range(2):
+                if not self.demo_running:
+                    break
+                    
+                # Forward wave: 60 to 120 in small steps
+                for angle in range(60, 121, 5):
+                    if not self.demo_running:
+                        break
+                    self.send_command(f"000,servo,{angle}")
+                    time.sleep(0.3)
+                
+                # Backward wave: 120 to 60 in small steps
+                for angle in range(120, 59, -5):
+                    if not self.demo_running:
+                        break
+                    self.send_command(f"000,servo,{angle}")
+                    time.sleep(0.3)
+                    
+        except Exception as e:
+            self.log_message(f"Demo error: {str(e)}")
+        finally:
+            self.demo_running = False
+            self.root.after(0, self.reset_demo_state)
+            self.log_message("🌊 Servo Wave demo completed")
+    
+    def start_dac_rainbow(self):
+        """Start DAC rainbow fade demo"""
+        if self.demo_running:
+            self.log_message("Demo already running - please wait for completion")
+            return
+        if not self.connected:
+            messagebox.showerror("Error", "Not connected to device")
+            return
+            
+        self.demo_running = True
+        self.demo_status_var.set("Running DAC Rainbow...")
+        self.disable_demo_buttons()
+        self.demo_thread = threading.Thread(target=self.run_dac_rainbow, daemon=True)
+        self.demo_thread.start()
+        
+    def run_dac_rainbow(self):
+        """Run DAC rainbow fade pattern"""
+        try:
+            self.log_message("🌈 Starting DAC Rainbow demo...")
+            
+            for cycle in range(2):  # 2 complete fades
+                if not self.demo_running:
+                    break
+                    
+                # Fade up: 0% to 100%
+                for percent in range(0, 101, 10):
+                    if not self.demo_running:
+                        break
+                    dac_value = int((percent / 100.0) * 1023)
+                    self.send_command(f"000,dac,{dac_value}")
+                    time.sleep(0.2)
+                
+                # Hold at maximum
+                if self.demo_running:
+                    time.sleep(0.5)
+                
+                # Fade down: 100% to 0%
+                for percent in range(100, -1, -10):
+                    if not self.demo_running:
+                        break
+                    dac_value = int((percent / 100.0) * 1023)
+                    self.send_command(f"000,dac,{dac_value}")
+                    time.sleep(0.2)
+                
+                # Hold at minimum
+                if self.demo_running:
+                    time.sleep(0.5)
+                    
+        except Exception as e:
+            self.log_message(f"Demo error: {str(e)}")
+        finally:
+            self.demo_running = False
+            self.root.after(0, self.reset_demo_state)
+            self.log_message("🌈 DAC Rainbow demo completed")
+    
+
+    
+    def stop_demo(self):
+        """Stop any running demo"""
+        if self.demo_running:
+            self.demo_running = False
+            self.log_message("⏹️ Demo stopped by user")
+            self.reset_demo_state()
+        
+    def disable_demo_buttons(self):
+        """Disable all demo buttons during demo"""
+        self.demo1_btn.configure(state="disabled")
+        self.demo2_btn.configure(state="disabled")
+        self.demo3_btn.configure(state="disabled")
+        self.stop_demo_btn.configure(state="normal")
+        
+    def reset_demo_state(self):
+        """Reset demo UI state (must be called from main thread)"""
+        # Sync with current system state when demo ends
+        current_state = self.system_state_var.get()
+        if current_state == "Ready":
+            self.demo_status_var.set("Ready for demos")
+        else:
+            self.demo_status_var.set(f"System: {current_state}")
+            
+        self.demo1_btn.configure(state="normal")
+        self.demo2_btn.configure(state="normal")
+        self.demo3_btn.configure(state="normal")
+        self.stop_demo_btn.configure(state="disabled")
 
     def show_help_window(self):
         """Show comprehensive GUI help window"""
@@ -993,10 +1184,10 @@ class LEDArrayControllerGUI:
         • Ensure all devices are powered
         
         Command Completion:
-        • Commands complete when "Command completed round trip" appears
+        • Commands complete when "EOT" message appears
         • GUI shows "✓ Command completed successfully" when done
         • Wait for completion before sending next command
-        • Simple round-trip confirmation system
+        • round-trip confirmation system
         
         Command Not Working:
         • Check device is detected (see "Total Devices")
